@@ -2,14 +2,15 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import date, datetime, timedelta, time
+from datetime import date, datetime
 
 # ----------------------------------------------------
 # CONFIGURAÇÃO GERAL
 # ----------------------------------------------------
-st.set_page_config(page_title="Agenda e Tarefas - Fabíola Guimarães", layout="wide", page_icon="⚖️")
+st.set_page_config(page_title="Controle de Tarefas - Advocacia", layout="wide", page_icon="⚖️")
 
-NOME_PLANILHA = "Tarefas Advog Homecare"  # Certifique-se de que o nome no Google Sheets seja exatamente este
+# Nomes possíveis da planilha no Google Drive
+NOMES_PLANILHA_POSSIVEIS = ["Controle de Tarefas", "Tarefas Advog Homecare"]
 
 # ----------------------------------------------------
 # CREDENCIAIS GOOGLE SERVICE ACCOUNT (NOVA CHAVE ATIVA)
@@ -30,8 +31,7 @@ SERVICE_ACCOUNT_INFO = {
         "K+X2MHD4aDeJvHvpg1ha2aaDzBD8fV4cHD+CsxhfY7p8mt8wuf3jlpgRPnvg9d4U\n"
         "PySf5bo1weTtWv/MTV4qJHs4EIKgdZ8i/QCAYvllIY2gLQmooXskA+MigFXwy3sT\n"
         "GC0VVp+M3AGN6tmnPTyzrIIMsWomCkhmHaXiiz4wR+0M8yINXXN140YXCKXntMEc\n"
-        "Z5oAnuqUSHDfn/9Se4vLc4zflaDumjQs2XeUQp0t5qNNkxxLyl43CZ50VWVFCMbo\n"
-        "dBipAaNSh6jP6oAX5xfLQkgfD1fIlD7o/MRghJRFwwKBgQDbAWKnFmTrIDTUQBbV\n"
+        "Z5oAnuqUSHDfn/9Se4vLc4zflaDumjQs2XeUQp0t5qNNkxxLyl43CZ50VWVFCMbo\ndBipAaNSh6jP6oAX5xfLQkgfD1fIlD7o/MRghJRFwwKBgQDbAWKnFmTrIDTUQBbV\n"
         "fg4I/u64WZ0T+LIkxNEX7rvpT1I1zm4oEamnKQCgJoH0YMbOK+f9APODYYmnr5J+\n"
         "R6+r+sf0uKnCVMEkNMq8zNxIigSSX2ppCJiZ4R3p4b0puaXVCu9r5iPMeUWT/H1l\n"
         "CG4qrCULQkbScdFBp3JSwBufbwKBgQDEB61Jhifc+COCc/vfKc98QsRZ1NumYmMQ\n"
@@ -58,161 +58,213 @@ SERVICE_ACCOUNT_INFO = {
 }
 
 # ----------------------------------------------------
-# CONEXÃO COM GOOGLE SHEETS
+# CONEXÃO GOOGLE SHEETS
 # ----------------------------------------------------
-@st.cache_resource(ttl=300)
-def obter_conexao_sheets():
-    """Autentica na API do Google Sheets tratando quebras de linha da private_key."""
+@st.cache_resource(ttl=60)
+def conectar_google_sheets():
+    """Autentica e abre a planilha de tarefas existente."""
     try:
         creds_dict = dict(SERVICE_ACCOUNT_INFO)
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-
         escopos = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
         credenciais = Credentials.from_service_account_info(creds_dict, scopes=escopos)
         cliente = gspread.authorize(credenciais)
-        planilha = cliente.open(NOME_PLANILHA)
+
+        planilha = None
+        for nome in NOMES_PLANILHA_POSSIVEIS:
+            try:
+                planilha = cliente.open(nome)
+                if planilha:
+                    break
+            except Exception:
+                continue
+
+        if not planilha:
+            raise Exception(f"Não foi possível abrir a planilha com os nomes: {NOMES_PLANILHA_POSSIVEIS}")
+
         return planilha
     except Exception as e:
-        st.error(f"Erro ao ligar à folha de cálculo: {e}")
+        st.error(f"Erro ao conectar à planilha: {e}")
         return None
 
-def obter_ou_criar_aba(planilha, nome_aba, cabecalhos):
-    """Retorna uma aba da planilha; se não existir, cria com os cabeçalhos padrão."""
+def obter_aba_tarefas(planilha):
+    """Localiza a aba com os dados (Página1 ou a primeira aba da planilha)."""
     try:
-        return planilha.worksheet(nome_aba)
-    except gspread.WorksheetNotFound:
-        aba = planilha.add_worksheet(title=nome_aba, rows="100", cols=str(len(cabecalhos)))
-        aba.append_row(cabecalhos)
-        return aba
+        return planilha.worksheet("Página1")
+    except Exception:
+        return planilha.get_worksheet(0)
 
-def carregar_dados(planilha, nome_aba, cabecalhos_padrao):
-    """Lê os dados da aba e retorna como DataFrame."""
-    aba = obter_ou_criar_aba(planilha, nome_aba, cabecalhos_padrao)
-    valores = aba.get_all_records()
-    if not valores:
-        return pd.DataFrame(columns=cabecalhos_padrao)
-    return pd.DataFrame(valores)
+def carregar_tarefas(aba):
+    """Lê todas as linhas e colunas reais da planilha."""
+    dados = aba.get_all_values()
+    if not dados or len(dados) < 2:
+        return pd.DataFrame(columns=["Responsável", "Número", "Vencimento", "Categoria", "Descrição", "Status"])
+    
+    cabecalhos = [str(c).strip() for c in dados[0]]
+    linhas = dados[1:]
+    
+    df = pd.DataFrame(linhas, columns=cabecalhos)
+    
+    # Remove linhas vazias
+    if "Descrição" in df.columns:
+        df = df[df["Descrição"].str.strip() != ""].copy()
+    elif "Número" in df.columns:
+        df = df[df["Número"].str.strip() != ""].copy()
+
+    # Adiciona colunas esperadas caso não existam
+    colunas_obrigatorias = ["Responsável", "Número", "Vencimento", "Categoria", "Descrição", "Status"]
+    for col in colunas_obrigatorias:
+        if col not in df.columns:
+            df[col] = ""
+
+    return df[colunas_obrigatorias]
 
 # ----------------------------------------------------
 # INTERFACE PRINCIPAL
 # ----------------------------------------------------
-st.title("⚖️ Gestão de Tarefas e Agenda")
-st.caption("Conectado ao Google Sheets (Persistência em Nuvem)")
+st.title("⚖️ Controle de Tarefas")
+st.caption("Sincronizado em tempo real com a planilha do Google Sheets")
 
-planilha = obter_conexao_sheets()
+planilha = conectar_google_sheets()
 
 if not planilha:
-    st.warning(
-        f"Certifique-se de que compartilhou a folha de cálculo **'{NOME_PLANILHA}'** "
-        f"com o email da conta de serviço como **Editor**:\n\n"
-        f"`{SERVICE_ACCOUNT_INFO['client_email']}`"
-    )
+    st.warning("Verifique o compartilhamento da planilha com o e-mail da conta de serviço como Editor.")
     st.stop()
 
-# Cabeçalhos padrão das abas
-COLS_TAREFAS = ["ID", "Título", "Prazo", "Prioridade", "Status", "Responsável", "Descrição"]
-COLS_AGENDA = ["ID", "Título", "Data Início", "Hora Início", "Data Fim", "Hora Fim", "Local/Link", "Descrição"]
+aba = obter_aba_tarefas(planilha)
+df_tarefas = carregar_tarefas(aba)
 
-aba_tarefas_sheets = obter_ou_criar_aba(planilha, "Tarefas", COLS_TAREFAS)
-aba_agenda_sheets = obter_ou_criar_aba(planilha, "Agenda", COLS_AGENDA)
+# ----------------------------------------------------
+# MÉTRICAS RÁPIDAS
+# ----------------------------------------------------
+total_tarefas = len(df_tarefas)
+pendentes = len(df_tarefas[df_tarefas["Status"].str.lower().str.contains("pendente", na=False)])
+atrasadas = len(df_tarefas[df_tarefas["Status"].str.lower().str.contains("atrasad", na=False)])
+concluidas = len(df_tarefas[df_tarefas["Status"].str.lower().str.contains("conclu", na=False)])
 
-# Navegação
-aba_sel_1, aba_sel_2 = st.tabs(["✅ Gestão de Tarefas", "📅 Agenda de Compromissos"])
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Total de Tarefas", total_tarefas)
+m2.metric("Pendentes", pendentes)
+m3.metric("Atrasadas", atrasadas)
+m4.metric("Concluídas", concluidas)
 
-# ====================================================
-# ABA 1: TAREFAS
-# ====================================================
-with aba_sel_1:
-    st.subheader("Quadro de Tarefas")
-    
-    with st.expander("➕ Nova Tarefa", expanded=False):
-        with st.form("form_nova_tarefa_gs", clear_on_submit=True):
-            c1, c2 = st.columns(2)
-            t_titulo = c1.text_input("Título da Tarefa")
-            t_prazo = c2.date_input("Prazo Limite", value=date.today(), format="DD/MM/YYYY")
-            
-            c3, c4 = st.columns(2)
-            t_prio = c3.selectbox("Prioridade", ["Baixa", "Média", "Alta", "Urgente"], index=1)
-            t_resp = c4.selectbox("Responsável", ["Fabrício Gonçalves", "Dra. Fabíola Guimarães", "Outro"])
-            
-            t_desc = st.text_area("Descrição / Anotações")
-            
-            if st.form_submit_button("Salvar Tarefa no Google Sheets", type="primary"):
-                if t_titulo.strip():
-                    df_t = carregar_dados(planilha, "Tarefas", COLS_TAREFAS)
-                    novo_id = 1 if df_t.empty else int(df_t["ID"].max()) + 1
-                    
-                    nova_linha = [
-                        novo_id,
-                        t_titulo.strip(),
-                        str(t_prazo),
-                        t_prio,
-                        "Não Iniciada",
-                        t_resp,
-                        t_desc.strip()
-                    ]
-                    aba_tarefas_sheets.append_row(nova_linha)
-                    st.success("Tarefa gravada com sucesso na folha de cálculo!")
-                    st.cache_resource.clear()
-                    st.rerun()
-                else:
-                    st.warning("Preencha o título da tarefa.")
+st.divider()
 
-    # Listagem de Tarefas
-    df_tarefas = carregar_dados(planilha, "Tarefas", COLS_TAREFAS)
-    if df_tarefas.empty:
-        st.info("Nenhuma tarefa registada até ao momento.")
-    else:
-        st.dataframe(df_tarefas, use_container_width=True)
+# ----------------------------------------------------
+# FORMULÁRIO: INCLUIR NOVA TAREFA
+# ----------------------------------------------------
+with st.expander("➕ Nova Tarefa", expanded=False):
+    # Calcula próximo número sequencial
+    proximo_num = 1
+    if not df_tarefas.empty and "Número" in df_tarefas.columns:
+        nums_validos = pd.to_numeric(df_tarefas["Número"], errors="coerce").dropna()
+        if not nums_validos.empty:
+            proximo_num = int(nums_validos.max()) + 1
 
-# ====================================================
-# ABA 2: AGENDA
-# ====================================================
-with aba_sel_2:
-    st.subheader("Agenda de Compromissos")
-    
-    with st.expander("➕ Novo Compromisso", expanded=False):
-        with st.form("form_novo_comp_gs", clear_on_submit=True):
-            c1, c2 = st.columns(2)
-            comp_tit = c1.text_input("Título do Compromisso")
-            comp_loc = c2.text_input("Local ou Link da Reunião")
+    with st.form("form_nova_tarefa_planilha", clear_on_submit=True):
+        c1, c2, c3 = st.columns([1.2, 1, 1.2])
+        resp_lista = ["Fabíola", "Fabrício", "Outro"]
+        f_resp = c1.selectbox("Responsável", resp_lista)
+        f_venc = c2.date_input("Vencimento", value=date.today(), format="DD/MM/YYYY")
+        
+        # Categorias existentes para sugestão
+        cats_existentes = sorted(list(set(df_tarefas["Categoria"].dropna().unique())))
+        cats_existentes = [c for c in cats_existentes if str(c).strip()]
+        if "Site" not in cats_existentes:
+            cats_existentes.append("Site")
+        if "Outros" not in cats_existentes:
+            cats_existentes.append("Outros")
             
-            c3, c4, c5, c6 = st.columns(4)
-            comp_d_ini = c3.date_input("Data Início", value=date.today(), format="DD/MM/YYYY")
-            comp_h_ini = c4.time_input("Hora Início", value=time(9, 0))
-            comp_d_fim = c5.date_input("Data Término", value=date.today(), format="DD/MM/YYYY")
-            comp_h_fim = c6.time_input("Hora Término", value=time(10, 0))
-            
-            comp_desc = st.text_area("Anotações do Compromisso")
-            
-            if st.form_submit_button("Salvar Compromisso", type="primary"):
-                if comp_tit.strip():
-                    df_a = carregar_dados(planilha, "Agenda", COLS_AGENDA)
-                    novo_comp_id = 1 if df_a.empty else int(df_a["ID"].max()) + 1
-                    
-                    nova_linha_agenda = [
-                        novo_comp_id,
-                        comp_tit.strip(),
-                        str(comp_d_ini),
-                        comp_h_ini.strftime("%H:%M"),
-                        str(comp_d_fim),
-                        comp_h_fim.strftime("%H:%M"),
-                        comp_loc.strip(),
-                        comp_desc.strip()
-                    ]
-                    aba_agenda_sheets.append_row(nova_linha_agenda)
-                    st.success("Compromisso gravado com sucesso!")
-                    st.cache_resource.clear()
-                    st.rerun()
-                else:
-                    st.warning("Preencha o título do compromisso.")
+        f_cat = c3.selectbox("Categoria", cats_existentes)
+        
+        c4, c5 = st.columns([3, 1])
+        f_desc = c4.text_input("Descrição da Tarefa", placeholder="Ex: Revisar petição inicial...")
+        f_status = c5.selectbox("Status Inicial", ["Pendente", "Concluído", "Atrasado"])
 
-    # Exibição da Agenda
-    df_agenda = carregar_dados(planilha, "Agenda", COLS_AGENDA)
-    if df_agenda.empty:
-        st.info("Nenhum compromisso agendado.")
-    else:
-        st.dataframe(df_agenda, use_container_width=True)
+        if st.form_submit_button("Salvar na Planilha", type="primary"):
+            if f_desc.strip():
+                data_formatada = f_venc.strftime("%d/%m/%Y")
+                nova_linha = [
+                    f_resp,
+                    str(proximo_num),
+                    data_formatada,
+                    f_cat,
+                    f_desc.strip(),
+                    f_status
+                ]
+                aba.append_row(nova_linha)
+                st.success(f"Tarefa nº {proximo_num} salva com sucesso!")
+                st.cache_resource.clear()
+                st.rerun()
+            else:
+                st.warning("Preencha a descrição da tarefa.")
+
+# ----------------------------------------------------
+# FILTROS E VISUALIZAÇÃO DA TABELA
+# ----------------------------------------------------
+st.subheader("📋 Lista de Tarefas")
+
+col_f1, col_f2, col_f3, col_f4 = st.columns([1.2, 1.2, 1.2, 2])
+
+filtro_resp = col_f1.selectbox("Filtrar Responsável:", ["Todos"] + sorted(list(set(df_tarefas["Responsável"].dropna().unique()))))
+filtro_status = col_f2.selectbox("Filtrar Status:", ["Todos"] + sorted(list(set(df_tarefas["Status"].dropna().unique()))))
+filtro_cat = col_f3.selectbox("Filtrar Categoria:", ["Todas"] + sorted(list(set(df_tarefas["Categoria"].dropna().unique()))))
+busca_desc = col_f4.text_input("Buscar por Descrição:", placeholder="Digite uma palavra...")
+
+# Aplicação dos filtros
+df_filtrado = df_tarefas.copy()
+
+if filtro_resp != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Responsável"] == filtro_resp]
+
+if filtro_status != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Status"] == filtro_status]
+
+if filtro_cat != "Todas":
+    df_filtrado = df_filtrado[df_filtrado["Categoria"] == filtro_cat]
+
+if busca_desc.strip():
+    df_filtrado = df_filtrado[df_filtrado["Descrição"].str.contains(busca_desc, case=False, na=False)]
+
+# Ordenação por Número decrescente
+if not df_filtrado.empty:
+    df_filtrado["_num"] = pd.to_numeric(df_filtrado["Número"], errors="coerce").fillna(0)
+    df_filtrado = df_filtrado.sort_values(by="_num", ascending=True).drop(columns=["_num"])
+
+st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+
+# ----------------------------------------------------
+# ATUALIZAÇÃO RÁPIDA DE STATUS
+# ----------------------------------------------------
+with st.expander("✏️ Atualizar Status de uma Tarefa"):
+    if not df_tarefas.empty:
+        opcoes_tarefas = {
+            f"Nº {r['Número']} - {r['Descrição'][:50]} ({r['Responsável']})": r['Número']
+            for _, r in df_tarefas.iterrows() if str(r['Número']).strip()
+        }
+        
+        tarefa_selecionada = st.selectbox("Selecione a tarefa:", list(opcoes_tarefas.keys()))
+        num_tarefa = opcoes_tarefas[tarefa_selecionada]
+        
+        col_st1, col_st2 = st.columns([1.5, 1])
+        novo_status = col_st1.selectbox("Novo Status:", ["Concluído", "Pendente", "Atrasado"])
+        
+        if col_st2.button("Confirmar Atualização", type="primary"):
+            # Localiza a linha correspondente na planilha
+            todas_celulas = aba.col_values(2)  # Coluna B: Número
+            linha_index = None
+            for idx, valor in enumerate(todas_celulas, start=1):
+                if str(valor).strip() == str(num_tarefa).strip():
+                    linha_index = idx
+                    break
+            
+            if linha_index:
+                aba.update_cell(linha_index, 6, novo_status)  # Coluna F: Status
+                st.success(f"Status da tarefa nº {num_tarefa} atualizado para '{novo_status}'!")
+                st.cache_resource.clear()
+                st.rerun()
+            else:
+                st.error("Não foi possível encontrar a linha da tarefa na planilha.")
