@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta, time
 # ----------------------------------------------------
 st.set_page_config(page_title="Agenda e Tarefas - Fabíola Guimarães", layout="wide", page_icon="⚖️")
 
-NOME_PLANILHA = "Controle de Tarefas"  # Certifique-se de que o nome no Google Sheets seja exatamente este
+NOME_PLANILHA = "Tarefas Advog Homecare"  # Certifique-se de que o nome no Google Sheets seja exatamente este
 
 # ----------------------------------------------------
 # CREDENCIAIS GOOGLE SERVICE ACCOUNT (NOVA CHAVE ATIVA)
