@@ -9,32 +9,43 @@ from datetime import date, datetime, timedelta, time
 # ----------------------------------------------------
 st.set_page_config(page_title="Agenda e Tarefas - Fabíola Guimarães", layout="wide", page_icon="⚖️")
 
-NOME_PLANILHA = "Agenda e Tarefas"  # Altere para o nome exato da sua planilha no Google Sheets
+NOME_PLANILHA = "Agenda e Tarefas"  # Certifique-se de que o nome no Google Sheets seja exatamente este
 
 # ----------------------------------------------------
-# CREDENCIAIS GOOGLE SERVICE ACCOUNT EMBUTIDAS
+# CREDENCIAIS GOOGLE SERVICE ACCOUNT (NOVA CHAVE ATIVA)
 # ----------------------------------------------------
 SERVICE_ACCOUNT_INFO = {
     "type": "service_account",
     "project_id": "agenda-simples-513616",
-    "private_key_id": "799585a59acb5eaf1fe040463eba6503a2e5599b",
+    "private_key_id": "40fb2cef068b00f130f1d3f73cbe1632e74410c9",
     "private_key": (
         "-----BEGIN PRIVATE KEY-----\n"
-        "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC9EJNizZirmFKi\n"
-        "Hc5o8kvmrRIrWa4QrNHW3CDYwHTF4pJF9obQOGe1XTSbU6kHP+ZYrkHnPQfxfzgT\n"
-        "yklmn6pYRvvnFN8VkdLN0yRMQiF5GjSOpBdsgcTOBILzk2KNaECx8GVbooJNHkmk\n"
-        "gyakDk7ZObMOAfogTmblho4cYJMkdbWUNPjwZDrWqFC6rTUR04b5GBhjBMU0vUqR\n"
-        "aKu/6Bx0Kiizhqv2o8Pd3yQKt7FgKEG93XqBfMOFvRxUsocxuQVpqD5uJBDaLLAD\n"
-        "3gJO+VY9NprCps3P/3PI9pWd5mx6h33NNiQcIvV8VAyp8NnEACQRu6SDGM9uXck3\n"
-        "8YxooxmLAgMBAAECggEALTYhiKcRszchy5LFIWOPswIALk2rymEJbRAG6s5bHlco\n"
-        "E4L4iiJy6nP3eI1xBkLJmrtRFzMJCz8Y8eKV2uyjl6ih5IihME9G0eGD9Jh72LHj\n"
-        "j5i94TzHC10Y05aTIq2jiump01fxQO/VPHoAa4rgYCHkJ51hawhUot6ibTbK+RSj\n"
-        "tFD0cDREDPyps2q8wu1i8nqZsVTzjQSmMShSo8o3BXRrLfOrnZW3ItHX8zVpdQH0\n"
-        "YnJKq80X0D6mOgQAbFZoFh0GIbtLrQAjHjWH8Jc93UHpOdfJJuQyhGh+3ikJtJ92\n"
-        "2GLKtTmecoMYdpBzcd4cjc9krFJMv8lLVojTYulawQKBgQDfHtYbryq4I2rluKbi\n"
-        "9KyWBST7jjaLX0VhxVQ4wHSkTQc6IUxU3eeceoNxTZ8JpkC4v/FqNqNrtm7ac9/7\n"
-        "t5mWnRKoQAngtmhHnMyJyKgtF3IlxP8PHSupQqLXEIJAVDceMQ/8iw+UjkMZZ5zT\n"
-        "VhE6BQHrXy/pPlWIAm2p5WPP5wKBgQDY7P8QdkTPY2IpA4U1ArhKeF4SDSZ8L8Om\nlCxunkb+Gqpvgzf2X6wA1D+wCuSzDkRs0vNMTh6sqfTl3pCDG6k6D8zs1y1wsLUd\nz9y07dP+3V/9W7pAnXBzvnhH6vV9VuhL4UBe1/azMK/wGH78VEt18VlfTZz1DQrR\nOFJ08VUEvQKBgQDF6QBaRiJKe4ASjJvbrNR5rc6EJD1VmwhcFUEDphLQulKyyV5/\n2OXc8v8svYFYedPnDLsDT7vdi1EBDM+c49qksmcePs+EN8h/3SHBBe/HL4jc38Su\nj11vIeB3i/k9PnY1nadkh6UmTJpQKov9Gdbl9BMjyKci6VvM7PqBPSwv+QKBgBJu\n6Sm78xLwbgnwK6Sai5CAc/Xyuh95a5W/J5tqxbuYBn2dV+cOsC4N2y+ZbV+tybC5\nqEUGqmKfupjB9eO+OP4fE5nYmxrlWS6kWCvjvcz9gMelwMj21/Rt7gimdZ/l/61b\nAb5NecA2Ve0AF+JXQ2ZNUPvhO4IzToUC1Tbsvv29AoGAWQkL28gKb6O933u0GUtv\niwsVcOZSjXjF42K+Bo+SANKFfDcYCCxW+RBl03e8a+ikdXNbdTaYhezqJVfxr6YX\nMKN5nqannyBhI8rG+fuqYbThoYD7JjqsB7rkFRLyi5O0rBTi4QIGbSVqAe6N+pWz\nDu4RCJk924LMjRitH5XISjQ=\n"
+        "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCns6DQdYvAcaGs\n"
+        "8rrezJZlf8Ga39NEVS5mDvoP1nUGkKKICMRsFUBnNTwrS7JfUUmMExHEGBhl05l0\n"
+        "CzmWZ31mXcMGZQezHhwmrVyLdTlwflEXH/p0CvL8v97dP+81mDDzKsUV1ht+ywx5\n"
+        "fRqtW2TwQHxy/Fma63Pqv5Ak/N1Zyf/RIUM2uPCs/BIWMbFDKCzVhwvtUG1Mqc4P\n"
+        "SSOFBnExdNzbZVJUnxXSHeziL7581LPAa9Qnbo5GF8U06l4td9be84DLKSSNdsVi\n"
+        "qdilowDxhRlGPRgoiWQzxx2oxiaaUbdFImymYiQFZDp2ON0Sbk13RfFmx6+2qllN\n"
+        "ClMapHfpAgMBAAECggEACDm8zQy+7pEEQ5XiSZRSWiciiWSqGaNt866PYGB9+/Tz\n"
+        "K+X2MHD4aDeJvHvpg1ha2aaDzBD8fV4cHD+CsxhfY7p8mt8wuf3jlpgRPnvg9d4U\n"
+        "PySf5bo1weTtWv/MTV4qJHs4EIKgdZ8i/QCAYvllIY2gLQmooXskA+MigFXwy3sT\n"
+        "GC0VVp+M3AGN6tmnPTyzrIIMsWomCkhmHaXiiz4wR+0M8yINXXN140YXCKXntMEc\n"
+        "Z5oAnuqUSHDfn/9Se4vLc4zflaDumjQs2XeUQp0t5qNNkxxLyl43CZ50VWVFCMbo\n"
+        "dBipAaNSh6jP6oAX5xfLQkgfD1fIlD7o/MRghJRFwwKBgQDbAWKnFmTrIDTUQBbV\n"
+        "fg4I/u64WZ0T+LIkxNEX7rvpT1I1zm4oEamnKQCgJoH0YMbOK+f9APODYYmnr5J+\n"
+        "R6+r+sf0uKnCVMEkNMq8zNxIigSSX2ppCJiZ4R3p4b0puaXVCu9r5iPMeUWT/H1l\n"
+        "CG4qrCULQkbScdFBp3JSwBufbwKBgQDEB61Jhifc+COCc/vfKc98QsRZ1NumYmMQ\n"
+        "D7wpSEQeMW32E+8Kw5b+OzbW41gRz9qtGVxIKir9RdyYLOiAOL5pdc3hfC1qpwcE\n"
+        "PSr8nOR24Df/pDcTvFn2GQrsWmYr0ji1CCMRIgOicwvFEmZXpqKSXKOFELm7nnuT\n"
+        "1HjhLayyJwKBgD7ynf1ypV0jq6uaJDYG/le9lrXsJAb6g5Gn9IWRe/dqcjG+/NCN\n"
+        "ixrd4S0nBFFOg7X8zrhczqFjpqJJB60+Q5MGCPUhIsIVhFI4zlEH/QTojrnXrQk1\n"
+        "jE8mcmeoF6vnjW+3retwgbei38nSV+RzUN75Dci3qw2P41qgm26HgykHAoGBAJbe\n"
+        "rbCjjrSTSYkSSOxVWnnxTPsyRqbEnCd1ZMSE+OAf/NhiORyYsfISkr9KE7MJvOxy\n"
+        "U0K7KYDqLr/z+DEO+wVhhEWhc7bcvBq4FQh8m50eLhsTQMxwrvAoD+8eF/pr/fbe\n"
+        "P1blTdTOJGXVJm0ZM4/fun4kBD5w1/1LjokHxR0LAoGBAMVWPA7LjKT7o0fC2CE/\n"
+        "TYvcFbUQGnVt80NzSJdEF23YoqmWmr8HM3vpRVuhBWprK1uDx1dCVvsEE7B4dIlw\n"
+        "+HCvIww2GdmaaDZ3VK6oEiqX3XpvE4HLFRgDPk9EeNN7ySkgJ4D0x/nN2Ft8hgb1\n"
+        "AzOfTA5bmkpIl6tFpFv4iwni\n"
         "-----END PRIVATE KEY-----\n"
     ),
     "client_email": "task-manager@agenda-simples-513616.iam.gserviceaccount.com",
@@ -53,7 +64,6 @@ SERVICE_ACCOUNT_INFO = {
 def obter_conexao_sheets():
     """Autentica na API do Google Sheets tratando quebras de linha da private_key."""
     try:
-        # Clona o dicionário e garante a substituição correta de escapes literais
         creds_dict = dict(SERVICE_ACCOUNT_INFO)
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
